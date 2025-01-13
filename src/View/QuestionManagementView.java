@@ -2,6 +2,9 @@ package View;
 
 import DAO.CategoryDAO;
 import DAO.QuestionDAO;
+import View.SubQM.AddQuestionDialog;
+import View.SubQM.ShowEditQuestionDialog;
+import View.SubQM.ShowQuestionDetail;
 import model.Category;
 import model.Question;
 import model.User;
@@ -24,6 +27,9 @@ public class QuestionManagementView extends JFrame {
     private CategoryDAO categoryDAO;
     private Frame parentFrame;
     private User currentUser;
+    private JTextField searchKeywordField;
+    private JComboBox<String> questionTypeCombo;
+    private JComboBox<String> difficultyCombo;
 
     // 定义界面主要颜色和字体
     private Color primaryColor = new Color(51, 122, 183);
@@ -39,14 +45,14 @@ public class QuestionManagementView extends JFrame {
         categoryDAO = new CategoryDAO();
         initComponents();
         loadQuestionData();
-        //setupStyle();
     }
+
+    // 测试用的狗叫函数
     public QuestionManagementView() {
         questionDAO = new QuestionDAO();
         categoryDAO = new CategoryDAO();
         initComponents();
         loadQuestionData();
-        //setupStyle();
     }
 
     private void initComponents() {
@@ -84,6 +90,7 @@ public class QuestionManagementView extends JFrame {
         add(mainPanel);
     }
 
+    // 左侧面板
     private JPanel createLeftPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBackground(backgroundColor);
@@ -117,34 +124,35 @@ public class QuestionManagementView extends JFrame {
         return panel;
     }
 
-    /**
-     * 创建右侧内容面板
-     */
+    // 右侧面板
     private JPanel createRightPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBackground(backgroundColor);
 
-        // 创建工具栏
-        JToolBar toolBar = createToolBar();
+        // 创建一个面板包含工具栏和搜索面板
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setBackground(backgroundColor);
 
-        // 创建搜索面板
+        // 添加工具栏
+        JToolBar toolBar = createToolBar();
+        topPanel.add(toolBar, BorderLayout.NORTH);
+
+        // 添加搜索面板
         JPanel searchPanel = createSearchPanel();
+        topPanel.add(searchPanel, BorderLayout.CENTER);
 
         // 创建题目表格
         createQuestionTable();
         JScrollPane tableScrollPane = new JScrollPane(questionTable);
 
-        // 添加组件到面板
-        panel.add(toolBar, BorderLayout.NORTH);
-        panel.add(searchPanel, BorderLayout.CENTER);
-        panel.add(tableScrollPane, BorderLayout.SOUTH);
+        // 将组件添加到主面板
+        panel.add(topPanel, BorderLayout.NORTH);
+        panel.add(tableScrollPane, BorderLayout.CENTER); // 表格设置为CENTER而不是SOUTH
 
         return panel;
     }
 
-    /**
-     * 创建工具栏
-     */
+    //创建工具栏
     private JToolBar createToolBar() {
         JToolBar toolBar = new JToolBar();
         toolBar.setFloatable(false);
@@ -156,6 +164,7 @@ public class QuestionManagementView extends JFrame {
         JButton editButton = createStyledButton("编辑题目");
         JButton deleteButton = createStyledButton("删除题目");
         JButton showButton = createStyledButton("显示题目详情");
+        JButton historyButton = createStyledButton("显示题目历史");
 
 
         // 添加事件监听器
@@ -163,6 +172,7 @@ public class QuestionManagementView extends JFrame {
         editButton.addActionListener(e -> showEditQuestionDialog());
         deleteButton.addActionListener(e -> deleteSelectedQuestion()); // 删除题目
         showButton.addActionListener(e -> showQuestionDetail());
+        historyButton.addActionListener(e -> showHistoryDetail());
 
         // 添加按钮到工具栏
         toolBar.add(addButton);
@@ -172,6 +182,8 @@ public class QuestionManagementView extends JFrame {
         toolBar.add(deleteButton);
         toolBar.addSeparator(new Dimension(10, 0));
         toolBar.add(showButton);
+        toolBar.addSeparator(new Dimension(10, 0));
+        toolBar.add(historyButton);
 
         return toolBar;
     }
@@ -183,20 +195,84 @@ public class QuestionManagementView extends JFrame {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         panel.setBackground(backgroundColor);
 
-        // 添加搜索条件组件
+        // 创建并初始化搜索组件
         panel.add(new JLabel("关键词："));
-        panel.add(new JTextField(20));
+        searchKeywordField = new JTextField(20);
+        panel.add(searchKeywordField);
 
         panel.add(new JLabel("题型："));
-        panel.add(new JComboBox<>(new String[]{"全部", "选择题", "填空题", "简答题", "计算题"}));
+        questionTypeCombo = new JComboBox<>(new String[]{"全部", "选择题", "填空题", "简答题", "计算题"});
+        panel.add(questionTypeCombo);
 
         panel.add(new JLabel("难度："));
-        panel.add(new JComboBox<>(new String[]{"全部", "简单", "中等", "困难"}));
+        difficultyCombo = new JComboBox<>(new String[]{"全部", "简单", "中等", "困难"});
+        panel.add(difficultyCombo);
 
         JButton searchButton = createStyledButton("搜索");
+        searchButton.addActionListener(e -> searchQuestions());
         panel.add(searchButton);
 
         return panel;
+    }
+
+    private void searchQuestions() {
+        Thread searchThread = new Thread(() -> {
+            LoadingDialog loadingDialog = LoadingDialog.show(this, "正在搜索...");
+            try {
+                String keyword = searchKeywordField.getText().trim();
+                String questionType = (String) questionTypeCombo.getSelectedItem();
+                String difficultyDisplay = (String) difficultyCombo.getSelectedItem();
+                String difficulty = getDifficultyValue(difficultyDisplay);
+
+                // 获取所有题目
+                List<Question> allQuestions = questionDAO.getAllQuestions();
+                List<Question> filteredQuestions = allQuestions.stream()
+                        .filter(q -> {
+                            // 关键词匹配（题目内容或答案）
+                            boolean keywordMatch = keyword.isEmpty() ||
+                                    q.getQuestionText().toLowerCase().contains(keyword.toLowerCase()) ||
+                                    q.getAnswer().toLowerCase().contains(keyword.toLowerCase());
+
+                            // 题型匹配
+                            boolean typeMatch = questionType.equals("全部") ||
+                                    q.getQuestionType().equals(questionType);
+
+                            // 难度匹配
+                            boolean difficultyMatch = difficulty.equals("all") ||
+                                    q.getDifficulty().equals(difficulty);
+
+                            return keywordMatch && typeMatch && difficultyMatch;
+                        })
+                        .collect(java.util.stream.Collectors.toList());
+
+                // 在 EDT 中更新表格
+
+                tableModel.setRowCount(0);
+                for (Question question : filteredQuestions) {
+                    Object[] rowData = {
+                            question.getQuestionId(),
+                            question.getQuestionText(),
+                            question.getQuestionType(),
+                            getDifficultyDisplay(question.getDifficulty()),  // 使用已有的转换方法
+                            question.getScore(),
+                            getCategoryName(question.getCategoryId()),
+                            question.getCreatedAt()
+                    };
+                    tableModel.addRow(rowData);
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(QuestionManagementView.this,
+                            "搜索失败：" + ex.getMessage());
+                });
+            } finally {
+                if (loadingDialog != null) {
+                    SwingUtilities.invokeLater(() -> loadingDialog.dispose());
+                }
+            }
+        });
+        searchThread.start();
     }
 
     /**
@@ -268,78 +344,6 @@ public class QuestionManagementView extends JFrame {
         }
     }
 
-    /**
-     * 显示添加分类对话框
-     */
-    private void showAddCategoryDialog() {
-        JDialog dialog = new JDialog(this, "添加分类", true);
-        //styleDialog(dialog, "添加新分类");
-
-        //JPanel formPanel = createStyledFormPanel();
-        JPanel formPanel = new JPanel();
-        formPanel.setLayout(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-
-        // 添加表单字段
-        JTextField nameField = new JTextField(20);
-        JComboBox<Category> parentComboBox = new JComboBox<>();
-        parentComboBox.addItem(null);  // 添加一个空选项作为顶级分类
-        for (Category category : categoryDAO.getAllCategories()) {
-            parentComboBox.addItem(category);
-        }
-
-        // 添加到面板
-        gbc.gridx = 0; gbc.gridy = 0;
-        formPanel.add(new JLabel("分类名称："), gbc);
-        gbc.gridx = 1;
-        formPanel.add(nameField, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 1;
-        formPanel.add(new JLabel("父级分类："), gbc);
-        gbc.gridx = 1;
-        formPanel.add(parentComboBox, gbc);
-
-        // 按钮面板
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        JButton confirmButton = createStyledButton("确定");
-        JButton cancelButton = createStyledButton("取消");
-
-        confirmButton.addActionListener(e -> {
-            String name = nameField.getText().trim();
-            if (name.isEmpty()) {
-                JOptionPane.showMessageDialog(dialog, "分类名称不能为空");
-                return;
-            }
-
-            Category parent = (Category) parentComboBox.getSelectedItem();
-            Category newCategory = new Category();
-            newCategory.setCategoryName(name);
-            newCategory.setParentId(parent == null ? null : parent.getCategoryId());
-
-            if (categoryDAO.addCategory(newCategory)) {
-                JOptionPane.showMessageDialog(dialog, "添加成功");
-                refreshCategoryTree();
-                dialog.dispose();
-            } else {
-                JOptionPane.showMessageDialog(dialog, "添加失败");
-            }
-        });
-
-        cancelButton.addActionListener(e -> dialog.dispose());
-
-        buttonPanel.add(confirmButton);
-        buttonPanel.add(cancelButton);
-
-        dialog.setLayout(new BorderLayout());
-        dialog.add(formPanel, BorderLayout.CENTER);
-        dialog.add(buttonPanel, BorderLayout.SOUTH);
-
-        dialog.pack();
-        dialog.setLocationRelativeTo(this);
-        dialog.setVisible(true);
-    }
-
     //显示添加题目对话框
     private void showAddQuestionDialog() {
         AddQuestionDialog dialog = new AddQuestionDialog(
@@ -366,31 +370,68 @@ public class QuestionManagementView extends JFrame {
     }
 
     private void showEditQuestionDialog() {
-        new ShowEditQuestionDialog(this, );
-    }
-
-    // 刷新分类树
-    private void refreshCategoryTree() {
-        categoryTree.setModel(createCategoryTreeModel());
+        int selectedRow = questionTable.getSelectedRow();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this, "请先选择要查看的题目");
+            return;
+        }
+        int questionId = (int) questionTable.getValueAt(selectedRow, 0);
+        Question q = questionDAO.getQuestionById(questionId);
+        ShowEditQuestionDialog dialog = new ShowEditQuestionDialog(
+                this,
+                q,
+                categoryDAO,
+                questionDAO,
+                currentUser.getUserId(),
+                this::loadQuestionData
+        );
+        dialog.setVisible(true);
     }
 
     // 加载题目数据
     private void loadQuestionData() {
-        List<Question> questions = questionDAO.getAllQuestions();
-        tableModel.setRowCount(0);
+        // 创建一个新线程来加载数据
+        Thread loadThread = new Thread(() -> {
+            LoadingDialog loadingDialog = LoadingDialog.show(this, "正在加载题库数据");
+            try {
+                List<Question> questions = questionDAO.getAllQuestions();
+                tableModel.setRowCount(0);
+                for (Question question : questions) {
+                    Object[] rowData = {
+                            question.getQuestionId(),
+                            question.getQuestionText(),
+                            question.getQuestionType(),
+                            getDifficultyDisplay(question.getDifficulty()),
+                            question.getScore(),
+                            getCategoryName(question.getCategoryId()),
+                            question.getCreatedAt()
+                    };
+                    tableModel.addRow(rowData);
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(this, "加载数据失败：" + ex.getMessage());
+                });
+            } finally {
+                // 关闭加载对话框
+                if (loadingDialog != null) {
+                    SwingUtilities.invokeLater(() -> loadingDialog.dispose());
+                }
+            }
+        });
+        loadThread.start();
+    }
 
-        for (Question question : questions) {
-            Object[] rowData = {
-                    question.getQuestionId(),
-                    question.getQuestionText(),
-                    question.getQuestionType(),
-                    getDifficultyDisplay(question.getDifficulty()),
-                    question.getScore(),
-                    getCategoryName(question.getCategoryId()),
-                    question.getCreatedAt()
-            };
-            tableModel.addRow(rowData);
+    void showHistoryDetail() {
+        int selectedRow = questionTable.getSelectedRow();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this, "请先选择要查看历史的题目");
+            return;
         }
+        int questionId = (int) questionTable.getValueAt(selectedRow, 0);
+        ShowHistoryDialog dialog = new ShowHistoryDialog(this, questionId);
+        dialog.setVisible(true);
     }
 
     // 获取难度等级显示文本
@@ -403,6 +444,15 @@ public class QuestionManagementView extends JFrame {
         }
     }
 
+    private String getDifficultyValue(String displayText) {
+        switch (displayText) {
+            case "简单": return "easy";
+            case "中等": return "medium";
+            case "困难": return "hard";
+            default: return "all";
+        }
+    }
+
     /**
      * 获取分类名称
      */
@@ -411,9 +461,7 @@ public class QuestionManagementView extends JFrame {
         return category != null ? category.getCategoryName() : "";
     }
 
-    /**
-     * 删除选中的题目
-     */
+    // 删除选中的题目d
     private void deleteSelectedQuestion() {
         int selectedRow = questionTable.getSelectedRow();
         if (selectedRow < 0) {
@@ -428,7 +476,7 @@ public class QuestionManagementView extends JFrame {
                 JOptionPane.YES_NO_OPTION);
 
         if (option == JOptionPane.YES_OPTION) {
-            if (questionDAO.deleteQuestion(questionId)) {
+            if (questionDAO.deleteQuestion(questionId,currentUser.getUserId())) {
                 JOptionPane.showMessageDialog(this, "删除成功");
                 loadQuestionData();
             } else {

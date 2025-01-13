@@ -3,6 +3,8 @@ package DAO;
 
 import model.Question;
 import Util.DatabaseUtil;
+import model.QuestionHistory;
+import model.User;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -12,12 +14,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class QuestionDAO {
+    private QuestionHistoryDAO historyDAO = new QuestionHistoryDAO();
 
     // 添加题目
     public boolean addQuestion(Question question) {
         Connection conn = null;
         PreparedStatement pstmt = null;
-
+        ResultSet generatedKeys = null;
         try {
             conn = DatabaseUtil.getConnection();
             String sql = "INSERT INTO question (category_id, question_text, image_url, question_type, answer, difficulty, score, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
@@ -31,7 +34,23 @@ public class QuestionDAO {
             pstmt.setDouble(7, question.getScore());
             pstmt.setInt(8, question.getCreatedBy());
             int rows = pstmt.executeUpdate();
-            return rows > 0;
+            // 记录操作历史
+            if (rows > 0) {
+                // 获取新插入的题目ID
+                generatedKeys = pstmt.getGeneratedKeys();
+                if (generatedKeys.next()) {
+                    int questionId = generatedKeys.getInt(1);
+                    // 记录操作历史
+                    QuestionHistory history = new QuestionHistory(
+                            questionId,
+                            question.getCreatedBy(),
+                            "create"
+                    );
+                    historyDAO.addHistory(history);
+                    return true;
+                }
+            }
+            return false;
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
@@ -117,12 +136,8 @@ public class QuestionDAO {
         return questions;
     }
 
-    /**
-     * 删除题目
-     * @param questionId 题目ID
-     * @return 是否删除成功
-     */
-    public boolean deleteQuestion(int questionId) {
+    // 修改删除题目方法，添加用户ID参数
+    public boolean deleteQuestion(int questionId, int userId) {
         Connection conn = null;
         PreparedStatement pstmt = null;
 
@@ -143,7 +158,18 @@ public class QuestionDAO {
             pstmt = conn.prepareStatement(deleteSql);
             pstmt.setInt(1, questionId);
             int rows = pstmt.executeUpdate();
-            return rows > 0;
+
+            if (rows > 0) {
+                // 记录操作历史
+                QuestionHistory history = new QuestionHistory(
+                        questionId,
+                        userId,
+                        "delete"
+                );
+                historyDAO.addHistory(history);
+                return true;
+            }
+            return false;
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
@@ -191,4 +217,47 @@ public class QuestionDAO {
 
         return null;
     }
+
+    // 修改更新题目方法
+    public boolean updateQuestion(Question question, int userId) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+
+        try {
+            conn = DatabaseUtil.getConnection();
+            String sql = "UPDATE question SET category_id=?, question_text=?, image_url=?, "
+                    + "question_type=?, answer=?, answer_image_url=?, difficulty=?, score=? "
+                    + "WHERE question_id=?";
+
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, question.getCategoryId());
+            pstmt.setString(2, question.getQuestionText());
+            pstmt.setString(3, question.getImageUrl());
+            pstmt.setString(4, question.getQuestionType());
+            pstmt.setString(5, question.getAnswer());
+            pstmt.setString(6, question.getAnswerImageUrl());
+            pstmt.setString(7, question.getDifficulty());
+            pstmt.setDouble(8, question.getScore());
+            pstmt.setInt(9, question.getQuestionId());
+
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                // 记录操作历史
+                QuestionHistory history = new QuestionHistory(
+                        question.getQuestionId(),
+                        userId,
+                        "update"
+                );
+                historyDAO.addHistory(history);
+                return true;
+            }
+            return false;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            DatabaseUtil.close(conn, pstmt, null);
+        }
+    }
+
 }

@@ -1,4 +1,4 @@
-package View;
+package View.SubQM;
 
 import model.Question;
 import javax.swing.*;

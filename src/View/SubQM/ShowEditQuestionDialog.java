@@ -1,4 +1,4 @@
-package View;
+package View.SubQM;
 
 
 import model.Question;
@@ -34,14 +34,16 @@ public class ShowEditQuestionDialog extends JDialog {
     private final JLabel answerImageLabel;
     private final JFileChooser fileChooser;
     private final Runnable onQuestionUpdated;
+    private int userId;
 
     public ShowEditQuestionDialog(JFrame parent, Question question, CategoryDAO categoryDAO,
-                                  QuestionDAO questionDAO, Runnable onQuestionUpdated) {
+                                  QuestionDAO questionDAO, int userId,Runnable onQuestionUpdated) {
         super(parent, "编辑题目", true);
         this.question = question;
         this.categoryDAO = categoryDAO;
         this.questionDAO = questionDAO;
         this.onQuestionUpdated = onQuestionUpdated;
+        this.userId = userId;
 
         // 初始化文件选择器
         fileChooser = new JFileChooser();
@@ -325,9 +327,9 @@ public class ShowEditQuestionDialog extends JDialog {
         question.setAnswer(answerArea.getText().trim());
         question.setImageUrl(questionImagePath);
         question.setAnswerImageUrl(answerImagePath);
-
         Category selectedCategory = (Category) categoryComboBox.getSelectedItem();
         question.setCategoryId(selectedCategory.getCategoryId());
+        questionDAO.updateQuestion(question, userId);
     }
 
     private JButton createStyledButton(String text) {

@@ -1,4 +1,4 @@
-package View;
+package View.SubQM;
 
 import DAO.CategoryDAO;
 import DAO.QuestionDAO;
@@ -260,20 +260,36 @@ public class AddQuestionDialog extends JDialog {
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
         contentPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // 添加预览内容
-        addPreviewField(contentPanel, "题目类型：", (String) typeComboBox.getSelectedItem());
-        addPreviewField(contentPanel, "难度级别：", (String) difficultyComboBox.getSelectedItem());
-        addPreviewField(contentPanel, "分值：", scoreField.getText());
+        // 使用表格布局显示基本信息
+        JPanel basicInfoPanel = new JPanel(new GridLayout(4, 2, 10, 5));
+        basicInfoPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+
+        basicInfoPanel.add(new JLabel("题目类型："));
+        basicInfoPanel.add(new JLabel((String) typeComboBox.getSelectedItem()));
+
+        basicInfoPanel.add(new JLabel("所属分类："));
+        basicInfoPanel.add(new JLabel(categoryComboBox.getSelectedItem().toString()));
+
+        basicInfoPanel.add(new JLabel("难度级别："));
+        basicInfoPanel.add(new JLabel((String) difficultyComboBox.getSelectedItem()));
+
+        basicInfoPanel.add(new JLabel("分值："));
+        basicInfoPanel.add(new JLabel(scoreField.getText()));
+
+        contentPanel.add(basicInfoPanel);
+
+        // 题目内容
         addPreviewField(contentPanel, "题目内容：", questionText.getText());
 
-        // 显示题目图片
+        // 题目图片
         if (questionImagePath != null) {
             addImagePreview(contentPanel, "题目图片：", questionImagePath);
         }
 
+        // 答案内容
         addPreviewField(contentPanel, "答案内容：", answerArea.getText());
 
-        // 显示答案图片
+        // 答案图片
         if (answerImagePath != null) {
             addImagePreview(contentPanel, "答案图片：", answerImagePath);
         }
@@ -288,39 +304,31 @@ public class AddQuestionDialog extends JDialog {
         buttonPanel.add(closeButton);
         previewDialog.add(buttonPanel, BorderLayout.SOUTH);
 
-        previewDialog.setSize(600, 800);  // 增加窗口大小以适应图片
+        previewDialog.setSize(600, 800);
         previewDialog.setLocationRelativeTo(this);
         previewDialog.setVisible(true);
     }
 
-    // 添加图片预览的方法
     private void addImagePreview(JPanel panel, String label, String imagePath) {
         JPanel imagePanel = new JPanel(new BorderLayout());
+        imagePanel.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
         imagePanel.add(new JLabel(label), BorderLayout.NORTH);
 
         try {
-            // 读取图片文件
             BufferedImage originalImage = ImageIO.read(new File(imagePath));
-
-            // 计算缩放比例（最大宽度为400像素）
+            // 计算缩放比例
             int maxWidth = 400;
             double scale = (double) maxWidth / originalImage.getWidth();
             if (scale >= 1) {
-                scale = 1; // 如果图片本身较小，则不放大
+                scale = 1;
             }
 
-            // 计算缩放后的尺寸
             int scaledWidth = (int) (originalImage.getWidth() * scale);
             int scaledHeight = (int) (originalImage.getHeight() * scale);
 
-            // 创建缩放后的图片
             Image scaledImage = originalImage.getScaledInstance(scaledWidth, scaledHeight, Image.SCALE_SMOOTH);
-            ImageIcon imageIcon = new ImageIcon(scaledImage);
-
-            // 创建标签显示图片
-            JLabel imageLabel = new JLabel(imageIcon);
+            JLabel imageLabel = new JLabel(new ImageIcon(scaledImage));
             imageLabel.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
-            imageLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
             imagePanel.add(imageLabel, BorderLayout.CENTER);
         } catch (IOException e) {
@@ -335,7 +343,10 @@ public class AddQuestionDialog extends JDialog {
 
     private void addPreviewField(JPanel panel, String label, String value) {
         JPanel fieldPanel = new JPanel(new BorderLayout());
-        fieldPanel.add(new JLabel(label), BorderLayout.NORTH);
+        fieldPanel.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
+
+        JLabel labelComponent = new JLabel(label);
+        fieldPanel.add(labelComponent, BorderLayout.NORTH);
 
         JTextArea valueArea = new JTextArea(value);
         valueArea.setWrapStyleWord(true);
@@ -346,7 +357,7 @@ public class AddQuestionDialog extends JDialog {
 
         fieldPanel.add(valueArea, BorderLayout.CENTER);
         panel.add(fieldPanel);
-        panel.add(Box.createVerticalStrut(10));
+        panel.add(Box.createVerticalStrut(5));
     }
 
     protected JPanel createButtonPanel() {
