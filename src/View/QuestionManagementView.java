@@ -100,9 +100,21 @@ public class QuestionManagementView extends JFrame {
         titleLabel.setFont(titleFont);
         titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
 
-        // 创建分类树
+        // 在createLeftPanel方法中,创建分类树后添加监听器
         categoryTree = new JTree(createCategoryTreeModel());
         categoryTree.setFont(defaultFont);
+        categoryTree.addTreeSelectionListener(e -> {
+            DefaultMutableTreeNode node = (DefaultMutableTreeNode)
+                    categoryTree.getLastSelectedPathComponent();
+            if (node != null) {
+                if (node.getUserObject() instanceof Category) {
+                    Category selectedCategory = (Category) node.getUserObject();
+                    filterQuestionsByCategory(selectedCategory.getCategoryId());
+                } else if (node.getUserObject().equals("全部分类")) {
+                    loadQuestionData(); // 显示所有题目
+                }
+            }
+        });
         JScrollPane treeScrollPane = new JScrollPane(categoryTree);
 
         // 创建分类管理按钮面板
@@ -120,6 +132,8 @@ public class QuestionManagementView extends JFrame {
         panel.add(titleLabel, BorderLayout.NORTH);
         panel.add(treeScrollPane, BorderLayout.CENTER);
         panel.add(buttonPanel, BorderLayout.SOUTH);
+
+
 
         return panel;
     }
@@ -214,7 +228,6 @@ public class QuestionManagementView extends JFrame {
 
         return panel;
     }
-
     private void searchQuestions() {
         Thread searchThread = new Thread(() -> {
             LoadingDialog loadingDialog = LoadingDialog.show(this, "正在搜索...");
@@ -224,11 +237,18 @@ public class QuestionManagementView extends JFrame {
                 String difficultyDisplay = (String) difficultyCombo.getSelectedItem();
                 String difficulty = getDifficultyValue(difficultyDisplay);
 
-                // 获取所有题目
+                // 获取当前选中的分类
+                DefaultMutableTreeNode node = (DefaultMutableTreeNode)
+                        categoryTree.getLastSelectedPathComponent();
+                // 将变量声明为 final
+                final Integer selectedCategoryId = node != null && node.getUserObject() instanceof Category ?
+                        ((Category) node.getUserObject()).getCategoryId() : null;
+
+                // 获取所有题目并筛选
                 List<Question> allQuestions = questionDAO.getAllQuestions();
                 List<Question> filteredQuestions = allQuestions.stream()
                         .filter(q -> {
-                            // 关键词匹配（题目内容或答案）
+                            // 关键词匹配
                             boolean keywordMatch = keyword.isEmpty() ||
                                     q.getQuestionText().toLowerCase().contains(keyword.toLowerCase()) ||
                                     q.getAnswer().toLowerCase().contains(keyword.toLowerCase());
@@ -241,25 +261,29 @@ public class QuestionManagementView extends JFrame {
                             boolean difficultyMatch = difficulty.equals("all") ||
                                     q.getDifficulty().equals(difficulty);
 
-                            return keywordMatch && typeMatch && difficultyMatch;
+                            // 分类匹配
+                            boolean categoryMatch = selectedCategoryId == null ||
+                                    q.getCategoryId() == selectedCategoryId.intValue();
+
+                            return keywordMatch && typeMatch && difficultyMatch && categoryMatch;
                         })
                         .collect(java.util.stream.Collectors.toList());
-
-                // 在 EDT 中更新表格
-
-                tableModel.setRowCount(0);
-                for (Question question : filteredQuestions) {
-                    Object[] rowData = {
-                            question.getQuestionId(),
-                            question.getQuestionText(),
-                            question.getQuestionType(),
-                            getDifficultyDisplay(question.getDifficulty()),  // 使用已有的转换方法
-                            question.getScore(),
-                            getCategoryName(question.getCategoryId()),
-                            question.getCreatedAt()
-                    };
-                    tableModel.addRow(rowData);
-                }
+                // 更新表格
+                SwingUtilities.invokeLater(() -> {
+                    tableModel.setRowCount(0);
+                    for (Question question : filteredQuestions) {
+                        Object[] rowData = {
+                                question.getQuestionId(),
+                                question.getQuestionText(),
+                                question.getQuestionType(),
+                                getDifficultyDisplay(question.getDifficulty()),
+                                question.getScore(),
+                                getCategoryName(question.getCategoryId()),
+                                question.getCreatedAt()
+                        };
+                        tableModel.addRow(rowData);
+                    }
+                });
             } catch (Exception ex) {
                 ex.printStackTrace();
                 SwingUtilities.invokeLater(() -> {
@@ -318,14 +342,14 @@ public class QuestionManagementView extends JFrame {
         DefaultMutableTreeNode root = new DefaultMutableTreeNode("全部分类");
         List<Category> categories = categoryDAO.getAllCategories();
 
-        // 构建分类树
-        for (Category category : categories) {
-            if (category.getParentId() == null) {
-                DefaultMutableTreeNode node = new DefaultMutableTreeNode(category);
-                buildCategoryTree(node, categories);
-                root.add(node);
-            }
-        }
+        // 先添加顶级分类(parentId为null的)
+        categories.stream()
+                .filter(c -> c.getParentId() == null)
+                .forEach(category -> {
+                    DefaultMutableTreeNode node = new DefaultMutableTreeNode(category);
+                    buildCategoryTree(node, categories);
+                    root.add(node);
+                });
 
         return new DefaultTreeModel(root);
     }
@@ -333,15 +357,16 @@ public class QuestionManagementView extends JFrame {
     /**
      * 递归构建分类树
      */
-    private void buildCategoryTree(DefaultMutableTreeNode parentNode, List<Category> categories) {
+    // 修改buildCategoryTree方法
+    private void buildCategoryTree(DefaultMutableTreeNode parentNode, List<Category> allCategories) {
         Category parent = (Category) parentNode.getUserObject();
-        for (Category category : categories) {
-            if (category.getParentId() != null && category.getParentId().equals(parent.getCategoryId())) {
-                DefaultMutableTreeNode node = new DefaultMutableTreeNode(category);
-                buildCategoryTree(node, categories);
-                parentNode.add(node);
-            }
-        }
+        allCategories.stream()
+                .filter(c -> c.getParentId() != null && c.getParentId().equals(parent.getCategoryId()))
+                .forEach(category -> {
+                    DefaultMutableTreeNode node = new DefaultMutableTreeNode(category);
+                    buildCategoryTree(node, allCategories);
+                    parentNode.add(node);
+                });
     }
 
     //显示添加题目对话框
@@ -432,6 +457,48 @@ public class QuestionManagementView extends JFrame {
         int questionId = (int) questionTable.getValueAt(selectedRow, 0);
         ShowHistoryDialog dialog = new ShowHistoryDialog(this, questionId);
         dialog.setVisible(true);
+    }
+    private void filterQuestionsByCategory(int categoryId) {
+        Thread filterThread = new Thread(() -> {
+            LoadingDialog loadingDialog = LoadingDialog.show(this, "正在加载分类题目...");
+            try {
+                // 获取所有题目
+                List<Question> questions = questionDAO.getAllQuestions();
+
+                // 筛选属于当前分类的题目
+                List<Question> filteredQuestions = questions.stream()
+                        .filter(q -> q.getCategoryId() == categoryId)
+                        .collect(java.util.stream.Collectors.toList());
+
+                // 更新表格
+                SwingUtilities.invokeLater(() -> {
+                    tableModel.setRowCount(0);
+                    for (Question question : filteredQuestions) {
+                        Object[] rowData = {
+                                question.getQuestionId(),
+                                question.getQuestionText(),
+                                question.getQuestionType(),
+                                getDifficultyDisplay(question.getDifficulty()),
+                                question.getScore(),
+                                getCategoryName(question.getCategoryId()),
+                                question.getCreatedAt()
+                        };
+                        tableModel.addRow(rowData);
+                    }
+                });
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(QuestionManagementView.this,
+                            "加载分类题目失败：" + ex.getMessage());
+                });
+            } finally {
+                if (loadingDialog != null) {
+                    SwingUtilities.invokeLater(() -> loadingDialog.dispose());
+                }
+            }
+        });
+        filterThread.start();
     }
 
     // 获取难度等级显示文本
