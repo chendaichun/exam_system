@@ -171,7 +171,7 @@ public class CategoryDAO {
     }
 
     // 检查是否存在子分类
-    private boolean hasChildCategories(int categoryId) {
+    public boolean hasChildCategories(int categoryId) {
         Connection conn = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
@@ -192,6 +192,29 @@ public class CategoryDAO {
             DatabaseUtil.close(conn, pstmt, rs);
         }
 
+        return false;
+    }
+    // 检查分类是否被题目使用
+    public boolean isUsedByQuestions(int categoryId) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = DatabaseUtil.getConnection();
+            String sql = "SELECT COUNT(*) FROM question WHERE category_id = ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, categoryId);
+            rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.close(conn, pstmt, rs);
+        }
         return false;
     }
 }

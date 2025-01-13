@@ -2,9 +2,7 @@ package View;
 
 import DAO.CategoryDAO;
 import DAO.QuestionDAO;
-import View.SubQM.AddQuestionDialog;
-import View.SubQM.ShowEditQuestionDialog;
-import View.SubQM.ShowQuestionDetail;
+import View.SubQM.*;
 import model.Category;
 import model.Question;
 import model.User;
@@ -37,6 +35,7 @@ public class QuestionManagementView extends JFrame {
     private Font titleFont = new Font("微软雅黑", Font.BOLD, 16);
     private Font defaultFont = new Font("微软雅黑", Font.PLAIN, 14);
     private Font tableFont = new Font("微软雅黑", Font.PLAIN, 13);
+    private Font litleFont = new Font("微软雅黑", Font.PLAIN, 10);
 
     public QuestionManagementView(Frame parentFrame, User user) {
         this.parentFrame = parentFrame;
@@ -118,7 +117,7 @@ public class QuestionManagementView extends JFrame {
         JScrollPane treeScrollPane = new JScrollPane(categoryTree);
 
         // 创建分类管理按钮面板
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 5));
+        JPanel buttonPanel = new JPanel(new GridLayout(3,1));
         buttonPanel.setBackground(backgroundColor);
 
         JButton addCategoryBtn = createStyledButton("添加分类");
@@ -129,11 +128,44 @@ public class QuestionManagementView extends JFrame {
         buttonPanel.add(editCategoryBtn);
         buttonPanel.add(deleteCategoryBtn);
 
+        addCategoryBtn.addActionListener(e -> {
+            AddCategoryDialog dialog = new AddCategoryDialog(
+                    this,
+                    categoryDAO,
+                    () -> {
+                        DefaultTreeModel model = createCategoryTreeModel();
+                        categoryTree.setModel(model);
+                    }
+            );
+            dialog.setVisible(true);
+        });
+
+        editCategoryBtn.addActionListener(e -> {
+            DefaultMutableTreeNode node = (DefaultMutableTreeNode)
+                    categoryTree.getLastSelectedPathComponent();
+            if (node == null || !(node.getUserObject() instanceof Category)) {
+                JOptionPane.showMessageDialog(this, "请先选择要编辑的分类");
+                return;
+            }
+
+            Category category = (Category) node.getUserObject();
+            EditCategoryDialog dialog = new EditCategoryDialog(
+                    this,
+                    categoryDAO,
+                    category,
+                    () -> {
+                        DefaultTreeModel model = createCategoryTreeModel();
+                        categoryTree.setModel(model);
+                    }
+            );
+            dialog.setVisible(true);
+        });
+        // 在 createLeftPanel 方法中添加删除按钮的事件处理
+        deleteCategoryBtn.addActionListener(e -> deleteCategory());
+
         panel.add(titleLabel, BorderLayout.NORTH);
         panel.add(treeScrollPane, BorderLayout.CENTER);
         panel.add(buttonPanel, BorderLayout.SOUTH);
-
-
 
         return panel;
     }
@@ -202,9 +234,56 @@ public class QuestionManagementView extends JFrame {
         return toolBar;
     }
 
-    /**
-     * 创建搜索面板
-     */
+    // 添加删除分类的方法
+    private void deleteCategory() {
+        DefaultMutableTreeNode node = (DefaultMutableTreeNode)
+                categoryTree.getLastSelectedPathComponent();
+
+        if (node == null || !(node.getUserObject() instanceof Category)) {
+            JOptionPane.showMessageDialog(this, "请先选择要删除的分类");
+            return;
+        }
+
+        Category category = (Category) node.getUserObject();
+
+        // 检查是否有子分类
+        if (categoryDAO.hasChildCategories(category.getCategoryId())) {
+            JOptionPane.showMessageDialog(this,
+                    "该分类下还有子分类，请先删除子分类！",
+                    "无法删除",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // 检查是否被题目使用
+        if (categoryDAO.isUsedByQuestions(category.getCategoryId())) {
+            JOptionPane.showMessageDialog(this,
+                    "该分类下还有题目，请先移除或修改相关题目的分类！",
+                    "无法删除",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // 确认删除
+        int option = JOptionPane.showConfirmDialog(this,
+                "确定要删除分类 "+ category.getCategoryName() +  "吗？",
+                "确认删除",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        if (option == JOptionPane.YES_OPTION) {
+            if (categoryDAO.deleteCategory(category.getCategoryId())) {
+                JOptionPane.showMessageDialog(this, "删除成功");
+                // 刷新分类树
+                DefaultTreeModel model = createCategoryTreeModel();
+                categoryTree.setModel(model);
+            } else {
+                JOptionPane.showMessageDialog(this, "删除失败");
+            }
+        }
+    }
+
+    // 创建搜索面板
     private JPanel createSearchPanel() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         panel.setBackground(backgroundColor);
@@ -228,6 +307,8 @@ public class QuestionManagementView extends JFrame {
 
         return panel;
     }
+
+    // 搜索
     private void searchQuestions() {
         Thread searchThread = new Thread(() -> {
             LoadingDialog loadingDialog = LoadingDialog.show(this, "正在搜索...");
@@ -269,21 +350,19 @@ public class QuestionManagementView extends JFrame {
                         })
                         .collect(java.util.stream.Collectors.toList());
                 // 更新表格
-                SwingUtilities.invokeLater(() -> {
-                    tableModel.setRowCount(0);
-                    for (Question question : filteredQuestions) {
-                        Object[] rowData = {
-                                question.getQuestionId(),
-                                question.getQuestionText(),
-                                question.getQuestionType(),
-                                getDifficultyDisplay(question.getDifficulty()),
-                                question.getScore(),
-                                getCategoryName(question.getCategoryId()),
-                                question.getCreatedAt()
-                        };
-                        tableModel.addRow(rowData);
-                    }
-                });
+                tableModel.setRowCount(0);
+                for (Question question : filteredQuestions) {
+                    Object[] rowData = {
+                            question.getQuestionId(),
+                            question.getQuestionText(),
+                            question.getQuestionType(),
+                            getDifficultyDisplay(question.getDifficulty()),
+                            question.getScore(),
+                            getCategoryName(question.getCategoryId()),
+                            question.getCreatedAt()
+                    };
+                    tableModel.addRow(rowData);
+                }
             } catch (Exception ex) {
                 ex.printStackTrace();
                 SwingUtilities.invokeLater(() -> {
@@ -299,9 +378,7 @@ public class QuestionManagementView extends JFrame {
         searchThread.start();
     }
 
-    /**
-     * 创建题目表格
-     */
+    //创建题目表格
     private void createQuestionTable() {
         String[] columnNames = {"ID", "题目内容", "题型", "难度", "分值", "所属分类", "创建时间"};
         tableModel = new DefaultTableModel(columnNames, 0) {
@@ -315,9 +392,7 @@ public class QuestionManagementView extends JFrame {
         setupTableStyle(questionTable);
     }
 
-    /**
-     * 设置表格样式
-     */
+    // 设置表格样式
     private void setupTableStyle(JTable table) {
         table.setFont(tableFont);
         table.setRowHeight(30);
@@ -335,38 +410,49 @@ public class QuestionManagementView extends JFrame {
         header.setPreferredSize(new Dimension(header.getPreferredSize().width, 40));
     }
 
-    /**
-     * 创建分类树模型
-     */
+    // 创建分类树模型
     private DefaultTreeModel createCategoryTreeModel() {
         DefaultMutableTreeNode root = new DefaultMutableTreeNode("全部分类");
         List<Category> categories = categoryDAO.getAllCategories();
 
+        // 调试输出
+        System.out.println("获取到的分类数量: " + categories.size());
+        for (Category category : categories) {
+            System.out.println("分类: " + category.getCategoryName()
+                    + ", ID: " + category.getCategoryId()
+                    + ", 父ID: " + category.getParentId());
+        }
+
         // 先添加顶级分类(parentId为null的)
-        categories.stream()
-                .filter(c -> c.getParentId() == null)
-                .forEach(category -> {
-                    DefaultMutableTreeNode node = new DefaultMutableTreeNode(category);
-                    buildCategoryTree(node, categories);
-                    root.add(node);
-                });
+        for (Category category : categories) {
+            if (category.getParentId() == 0) {  // 判断是否是顶级分类
+                System.out.println("添加顶级分类: " + category.getCategoryName());  // 调试输出
+                DefaultMutableTreeNode node = new DefaultMutableTreeNode(category);
+                buildCategoryTree(node, categories);
+                root.add(node);
+            }
+        }
 
         return new DefaultTreeModel(root);
     }
 
-    /**
-     * 递归构建分类树
-     */
-    // 修改buildCategoryTree方法
+    // 构建类型树
     private void buildCategoryTree(DefaultMutableTreeNode parentNode, List<Category> allCategories) {
         Category parent = (Category) parentNode.getUserObject();
-        allCategories.stream()
-                .filter(c -> c.getParentId() != null && c.getParentId().equals(parent.getCategoryId()))
-                .forEach(category -> {
-                    DefaultMutableTreeNode node = new DefaultMutableTreeNode(category);
-                    buildCategoryTree(node, allCategories);
-                    parentNode.add(node);
-                });
+
+        // 调试输出
+        System.out.println("构建" + parent.getCategoryName() + "的子分类");
+
+        // 查找当前节点的所有子分类
+        for (Category category : allCategories) {
+            // 如果当前分类的父ID等于当前节点的ID，说明是它的子分类
+            if (category.getParentId() != null && category.getParentId().equals(parent.getCategoryId())) {
+                System.out.println("  添加子分类: " + category.getCategoryName());  // 调试输出
+                DefaultMutableTreeNode node = new DefaultMutableTreeNode(category);
+                buildCategoryTree(node, allCategories);
+                parentNode.add(node);
+            }
+        }
     }
 
     //显示添加题目对话框
@@ -394,6 +480,7 @@ public class QuestionManagementView extends JFrame {
         dialog.setVisible(true);
     }
 
+    // 显示编辑问题详情
     private void showEditQuestionDialog() {
         int selectedRow = questionTable.getSelectedRow();
         if (selectedRow < 0) {
@@ -448,6 +535,7 @@ public class QuestionManagementView extends JFrame {
         loadThread.start();
     }
 
+    // 展示题目历史记录
     void showHistoryDetail() {
         int selectedRow = questionTable.getSelectedRow();
         if (selectedRow < 0) {
@@ -458,6 +546,8 @@ public class QuestionManagementView extends JFrame {
         ShowHistoryDialog dialog = new ShowHistoryDialog(this, questionId);
         dialog.setVisible(true);
     }
+
+    // 过滤器
     private void filterQuestionsByCategory(int categoryId) {
         Thread filterThread = new Thread(() -> {
             LoadingDialog loadingDialog = LoadingDialog.show(this, "正在加载分类题目...");
@@ -511,6 +601,7 @@ public class QuestionManagementView extends JFrame {
         }
     }
 
+    // 反过来
     private String getDifficultyValue(String displayText) {
         switch (displayText) {
             case "简单": return "easy";
@@ -520,9 +611,7 @@ public class QuestionManagementView extends JFrame {
         }
     }
 
-    /**
-     * 获取分类名称
-     */
+    // 获取分类名称
     private String getCategoryName(int categoryId) {
         Category category = categoryDAO.getCategoryById(categoryId);
         return category != null ? category.getCategoryName() : "";
@@ -552,7 +641,6 @@ public class QuestionManagementView extends JFrame {
         }
     }
 
-
     // 创建统一样式的按钮
     private JButton createStyledButton(String text) {
         JButton button = new JButton(text);
@@ -577,6 +665,7 @@ public class QuestionManagementView extends JFrame {
         return button;
     }
 
+    // test
     public static void main(String[] args) {
         new QuestionManagementView().setVisible(true);
     }
