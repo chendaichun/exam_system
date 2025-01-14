@@ -6,10 +6,7 @@ import Util.DatabaseUtil;
 import model.QuestionHistory;
 import model.User;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,10 +17,10 @@ public class QuestionDAO {
     public boolean addQuestion(Question question) {
         Connection conn = null;
         PreparedStatement pstmt = null;
-        ResultSet generatedKeys = null;
         try {
             conn = DatabaseUtil.getConnection();
             String sql = "INSERT INTO question (category_id, question_text, image_url, question_type, answer, difficulty, score, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             pstmt = conn.prepareStatement(sql);
             pstmt.setInt(1, question.getCategoryId());
             pstmt.setString(2, question.getQuestionText());
@@ -37,18 +34,15 @@ public class QuestionDAO {
             // 记录操作历史
             if (rows > 0) {
                 // 获取新插入的题目ID
-                generatedKeys = pstmt.getGeneratedKeys();
-                if (generatedKeys.next()) {
-                    int questionId = generatedKeys.getInt(1);
-                    // 记录操作历史
-                    QuestionHistory history = new QuestionHistory(
-                            questionId,
-                            question.getCreatedBy(),
-                            "create"
-                    );
-                    historyDAO.addHistory(history);
-                    return true;
-                }
+                int questionId = question.getQuestionId();
+                // 记录操作历史
+                QuestionHistory history = new QuestionHistory(
+                        questionId,
+                        question.getCreatedBy(),
+                        "create"
+                );
+                historyDAO.addHistory(history);
+                return true;
             }
             return false;
         } catch (SQLException e) {

@@ -126,13 +126,15 @@ public class MainView extends JFrame {
 
     private void showQuestionManagement() {
         // TODO: 实现题库管理功能
+        this.setVisible(false);
         new QuestionManagementView(this, currentUser).setVisible(true);
         //JOptionPane.showMessageDialog(this, "题库管理功能即将开放");
     }
 
     private void showExamManagement() {
         // TODO: 实现组卷管理功能
-        JOptionPane.showMessageDialog(this, "组卷管理功能即将开放");
+        new ExamManagementView(this, currentUser).setVisible(true);
+        //JOptionPane.showMessageDialog(this, "组卷管理功能即将开放");
     }
 
     private void logout() {

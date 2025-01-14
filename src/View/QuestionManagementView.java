@@ -426,7 +426,7 @@ public class QuestionManagementView extends JFrame {
         // 先添加顶级分类(parentId为null的)
         for (Category category : categories) {
             if (category.getParentId() == 0) {  // 判断是否是顶级分类
-                System.out.println("添加顶级分类: " + category.getCategoryName());  // 调试输出
+                // System.out.println("添加顶级分类: " + category.getCategoryName());  // 调试输出
                 DefaultMutableTreeNode node = new DefaultMutableTreeNode(category);
                 buildCategoryTree(node, categories);
                 root.add(node);

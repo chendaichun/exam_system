@@ -22,7 +22,11 @@ public class CategoryDAO {
             String sql = "INSERT INTO category (category_name, parent_id) VALUES (?, ?)";
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, category.getCategoryName());
-            pstmt.setInt(2, category.getParentId());
+            if (category.getParentId() != 0) {
+                pstmt.setInt(2, category.getParentId());
+            } else {
+                pstmt.setNull(2, java.sql.Types.INTEGER);
+            }
             int rows = pstmt.executeUpdate();
             return rows > 0;
         } catch (SQLException e) {

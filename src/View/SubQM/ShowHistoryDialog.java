@@ -1,4 +1,4 @@
-package View;
+package View.SubQM;
 
 import DAO.QuestionHistoryDAO;
 import model.QuestionHistory;
