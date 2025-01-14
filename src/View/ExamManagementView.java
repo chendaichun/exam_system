@@ -28,26 +28,20 @@ public class ExamManagementView extends JFrame {
     private final Font TABLE_FONT = new Font("微软雅黑", Font.PLAIN, 13);
 
     private JTable examTable; // 试卷列表
-    private JTable questionTable; // 题目列表
     private DefaultTableModel examTableModel;
-    private DefaultTableModel questionTableModel;
     private ExamDAO examDAO;
-    private QuestionDAO questionDAO;
     private Frame parentFrame;
     private User currentUser;
-    private List<Question> selectedQuestions; // 已选择的题目
 
     public ExamManagementView(Frame parentFrame, User user) {
         this.parentFrame = parentFrame;
         this.currentUser = user;
         this.examDAO = new ExamDAO();
-        this.questionDAO = new QuestionDAO();
-        this.selectedQuestions = new ArrayList<>();
         initComponents();
         loadExamData();
-        loadQuestionData();
     }
 
+    // 修改initComponents()方法，移除splitPane相关代码
     private void initComponents() {
         setTitle("试卷管理");
         setSize(1200, 800);
@@ -71,19 +65,10 @@ public class ExamManagementView extends JFrame {
         JToolBar toolBar = createToolBar();
         mainPanel.add(toolBar, BorderLayout.NORTH);
 
-        // 创建分割面板
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        splitPane.setDividerLocation(600);
+        // 创建试卷列表面板
+        JPanel examListPanel = createExamListPanel();
+        mainPanel.add(examListPanel, BorderLayout.CENTER);
 
-        // 左侧面板 - 试卷列表
-        JPanel leftPanel = createExamListPanel();
-        splitPane.setLeftComponent(leftPanel);
-
-        // 右侧面板 - 题目列表
-        JPanel rightPanel = createQuestionListPanel();
-        splitPane.setRightComponent(rightPanel);
-
-        mainPanel.add(splitPane, BorderLayout.CENTER);
         add(mainPanel);
     }
 
@@ -136,35 +121,6 @@ public class ExamManagementView extends JFrame {
         return panel;
     }
 
-    private JPanel createQuestionListPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(Color.WHITE);
-
-        // 创建题目表格
-        String[] questionColumns = {"ID", "题目内容", "题型", "难度", "分值"};
-        questionTableModel = new DefaultTableModel(questionColumns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-
-        questionTable = new JTable(questionTableModel);
-        setupTableStyle(questionTable);
-
-        JScrollPane scrollPane = new JScrollPane(questionTable);
-        panel.add(new JLabel("题目列表", SwingConstants.CENTER), BorderLayout.NORTH);
-        panel.add(scrollPane, BorderLayout.CENTER);
-
-        // 添加按钮面板
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton addButton = createStyledButton("添加到试卷");
-        addButton.addActionListener(e -> addSelectedQuestionToExam());
-        buttonPanel.add(addButton);
-        panel.add(buttonPanel, BorderLayout.SOUTH);
-
-        return panel;
-    }
 
     private void setupTableStyle(JTable table) {
         table.setFont(TABLE_FONT);
@@ -215,21 +171,6 @@ public class ExamManagementView extends JFrame {
                     exam.getCreatedAt()
             };
             examTableModel.addRow(rowData);
-        }
-    }
-
-    private void loadQuestionData() {
-        questionTableModel.setRowCount(0);
-        List<Question> questions = questionDAO.getAllQuestions();
-        for (Question question : questions) {
-            Object[] rowData = {
-                    question.getQuestionId(),
-                    question.getQuestionText(),
-                    question.getQuestionType(),
-                    question.getDifficulty(),
-                    question.getScore()
-            };
-            questionTableModel.addRow(rowData);
         }
     }
 
@@ -347,54 +288,6 @@ public class ExamManagementView extends JFrame {
             } else {
                 JOptionPane.showMessageDialog(this, "删除失败");
             }
-        }
-    }
-
-    private void addSelectedQuestionToExam() {
-        int selectedExamRow = examTable.getSelectedRow();
-        int selectedQuestionRow = questionTable.getSelectedRow();
-
-        if (selectedExamRow < 0) {
-            JOptionPane.showMessageDialog(this, "请先选择要编辑的试卷");
-            return;
-        }
-
-        if (selectedQuestionRow < 0) {
-            JOptionPane.showMessageDialog(this, "请先选择要添加的题目");
-            return;
-        }
-
-        int examId = (int) examTable.getValueAt(selectedExamRow, 0);
-        int questionId = (int) questionTable.getValueAt(selectedQuestionRow, 0);
-
-        // 获取试卷信息
-        Exam exam = examDAO.getExamById(examId);
-        Question question = questionDAO.getQuestionById(questionId);
-
-        if (exam == null || question == null) {
-            JOptionPane.showMessageDialog(this, "获取信息失败");
-            return;
-        }
-
-        // 创建试题关联对象
-        ExamQuestion examQuestion = new ExamQuestion();
-        examQuestion.setExamId(examId);
-        examQuestion.setQuestionId(questionId);
-        examQuestion.setOrder(exam.getExamQuestions() != null ? exam.getExamQuestions().size() + 1 : 1);
-        examQuestion.setScore(BigDecimal.valueOf(question.getScore()));
-
-        // 添加到试卷中
-        if (exam.getExamQuestions() == null) {
-            exam.setExamQuestions(new ArrayList<>());
-        }
-        exam.getExamQuestions().add(examQuestion);
-
-        // 更新试卷
-        if (examDAO.updateExam(exam)) {
-            JOptionPane.showMessageDialog(this, "添加成功");
-            loadExamData();
-        } else {
-            JOptionPane.showMessageDialog(this, "添加失败");
         }
     }
 
